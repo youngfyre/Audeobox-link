@@ -39,18 +39,28 @@ jobs:
       - name: Build
         run: cmake --build build --config Release
 
-      - name: Import signing certificate
+      - name: Import signing certificates
         env:
           CSC_LINK: ${{ secrets.CSC_LINK }}
           CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          CSC_INSTALLER_LINK: ${{ secrets.CSC_INSTALLER_LINK }}
+          CSC_INSTALLER_KEY_PASSWORD: ${{ secrets.CSC_INSTALLER_KEY_PASSWORD }}
         run: |
           KEYCHAIN_PATH=$RUNNER_TEMP/build.keychain
-          CERT_PATH=$RUNNER_TEMP/cert.p12
-          echo "$CSC_LINK" | base64 --decode > "$CERT_PATH"
           security create-keychain -p "" "$KEYCHAIN_PATH"
           security set-keychain-settings "$KEYCHAIN_PATH"
           security unlock-keychain -p "" "$KEYCHAIN_PATH"
-          security import "$CERT_PATH" -k "$KEYCHAIN_PATH" -P "$CSC_KEY_PASSWORD" -T /usr/bin/codesign -T /usr/bin/productsign
+
+          # Import Developer ID Application cert (for codesign)
+          APP_CERT=$RUNNER_TEMP/app.p12
+          echo "$CSC_LINK" | base64 --decode > "$APP_CERT"
+          security import "$APP_CERT" -k "$KEYCHAIN_PATH" -P "$CSC_KEY_PASSWORD" -T /usr/bin/codesign -T /usr/bin/productsign
+
+          # Import Developer ID Installer cert (for productsign)
+          INST_CERT=$RUNNER_TEMP/installer.p12
+          echo "$CSC_INSTALLER_LINK" | base64 --decode > "$INST_CERT"
+          security import "$INST_CERT" -k "$KEYCHAIN_PATH" -P "$CSC_INSTALLER_KEY_PASSWORD" -T /usr/bin/codesign -T /usr/bin/productsign
+
           security set-key-partition-list -S apple-tool:,apple: -k "" "$KEYCHAIN_PATH"
           security list-keychains -d user -s "$KEYCHAIN_PATH" login.keychain
 
