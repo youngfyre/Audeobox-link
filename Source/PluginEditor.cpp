@@ -93,15 +93,15 @@ void AueoboxAudioProcessorEditor::paint(juce::Graphics& g)
 
     g.setColour(juce::Colour::fromRGB(160, 164, 174));
     g.setFont(juce::Font(18.0f));
-    g.drawText("Version 0.0.1", 84, 34, 160, 34, juce::Justification::centredLeft, false);
+    g.drawText("Version " + juce::String(ProjectInfo::versionString), 84, 34, 160, 34, juce::Justification::centredLeft, false);
 
     g.setColour(juce::Colours::white);
     g.setFont(juce::Font(39.0f, juce::Font::bold));
-    g.drawFittedText("Audeobox Sounds", 52, 124, getWidth() - 104, 54, juce::Justification::centred, 1);
+    g.drawFittedText("Audeobox Link", 52, 124, getWidth() - 104, 54, juce::Justification::centred, 1);
 
-    g.setColour(juce::Colour::fromRGB(57, 214, 123));
-    g.setFont(juce::Font(16.0f, juce::Font::bold));
-    g.drawFittedText("CODEX TEST BUILD 08:19", 52, 164, getWidth() - 104, 22, juce::Justification::centred, 1);
+    g.setColour(juce::Colour::fromRGB(160, 164, 174));
+    g.setFont(juce::Font(14.0f));
+    g.drawFittedText("DAW Bridge Plugin", 52, 164, getWidth() - 104, 22, juce::Justification::centred, 1);
 
     g.setColour(juce::Colour::fromRGB(230, 231, 235));
     g.setFont(juce::Font(21.0f));
@@ -162,6 +162,7 @@ void AueoboxAudioProcessorEditor::paint(juce::Graphics& g)
         : (audioProcessor.isBridgeManuallyDisconnected() ? "Disconnected" : "Waiting");
     g.drawText(label, 78, footer.getY() + 28, 180, 42, juce::Justification::centredLeft, false);
 
+#if JUCE_DEBUG
     const auto debugSessionId = audioProcessor.getBridgeSessionId();
     const auto debugBpm = juce::String(audioProcessor.getHostBpm(), 2);
     const auto debugPlaying = audioProcessor.isHostPlaying() ? "yes" : "no";
@@ -183,6 +184,7 @@ void AueoboxAudioProcessorEditor::paint(juce::Graphics& g)
     g.drawText(juce::String("error: ") + (debugError.isNotEmpty() ? debugError : "--"), 34, footer.getY() + 62, getWidth() - 68, 14, juce::Justification::centredLeft, false);
     g.drawText(juce::String("session: ") + (debugSessionId.isNotEmpty() ? debugSessionId : "--"), 34, footer.getY() + 78, getWidth() - 68, 14, juce::Justification::centredLeft, false);
     g.drawText(juce::String("build: ") + debugBuild, 34, footer.getY() + 92, getWidth() - 68, 14, juce::Justification::centredLeft, false);
+#endif
 }
 
 void AueoboxAudioProcessorEditor::resized()
