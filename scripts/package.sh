@@ -88,7 +88,8 @@ elif [ "$PLATFORM" = "win" ]; then
 AppName=Audeobox Link
 AppVersion=${VERSION}
 AppPublisher=Audeobox
-DefaultDirName={commonpf}\Audeobox\Audeobox Link
+AppId={{E7A2F1B3-4C5D-6E7F-8A9B-0C1D2E3F4A5B}
+DefaultDirName={commoncf}\VST3\Audeobox Link.vst3
 OutputDir=.
 OutputBaseFilename=Audeobox-Link-${VERSION}-win-setup
 Compression=lzma2
@@ -96,10 +97,13 @@ SolidCompression=yes
 ArchitecturesInstallIn64BitMode=x64compatible
 DisableProgramGroupPage=yes
 DisableDirPage=yes
+UninstallDisplayName=Audeobox Link VST3
+
+[InstallDelete]
+Type: filesandordirs; Name: "{commoncf}\VST3\Audeobox Link.vst3"
 
 [Files]
-Source: "..\build\AudeoboxLink_artefacts\Release\VST3\Audeobox Link.vst3\Contents\x86_64-win\Audeobox Link.vst3"; DestDir: "{commoncf}\VST3"; Flags: ignoreversion
-Source: "..\build\AudeoboxLink_artefacts\Release\VST3\Audeobox Link.vst3\Contents\Resources\moduleinfo.json"; DestDir: "{commoncf}\VST3\Audeobox Link.vst3\Contents\Resources"; Flags: ignoreversion
+Source: "..\build\AudeoboxLink_artefacts\Release\VST3\Audeobox Link.vst3\*"; DestDir: "{commoncf}\VST3\Audeobox Link.vst3"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Messages]
 WelcomeLabel2=This will install Audeobox Link v${VERSION} VST3 plugin.%n%nThe plugin will be installed to:%n  C:\Program Files\Common Files\VST3\%n%nRequires Audeobox Desktop to be running.
