@@ -142,7 +142,7 @@ jobs:
         run: |
           VERSION="${{ steps.version.outputs.version }}"
           curl -X POST -H 'Content-type: application/json' \
-            -d "{\"text\": \"✅ *Audeobox Link v${VERSION} (mac) released!*\n• *By:* ${{ github.actor }}\n• *Tag:* ${{ github.ref_name }}\"}" \
+            -d "{\"text\": \":white_check_mark: *Audeobox Link v${VERSION} (mac) released!*\n:small_blue_diamond: *By:* ${{ github.actor }}\n:small_blue_diamond: *Tag:* ${{ github.ref_name }}\"}" \
             "$SLACK_WEBHOOK" || true
 
       - name: Notify Slack of failure
@@ -151,7 +151,7 @@ jobs:
           SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
         run: |
           curl -X POST -H 'Content-type: application/json' \
-            -d "{\"text\": \"🚨 *Audeobox Link (mac) build FAILED!*\n• *By:* ${{ github.actor }}\n• *Logs:* https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}\"}" \
+            -d "{\"text\": \":rotating_light: *Audeobox Link (mac) build FAILED!*\n:small_blue_diamond: *By:* ${{ github.actor }}\n:small_blue_diamond: *Logs:* https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}\"}" \
             "$SLACK_WEBHOOK" || true
 
   build-win:
@@ -252,7 +252,7 @@ jobs:
         run: |
           VERSION="${{ steps.version.outputs.version }}"
           curl -X POST -H 'Content-type: application/json' \
-            -d "{\"text\": \"✅ *Audeobox Link v${VERSION} (win) released!*\n• *By:* ${{ github.actor }}\n• *Tag:* ${{ github.ref_name }}\"}" \
+            -d "{\"text\": \":white_check_mark: *Audeobox Link v${VERSION} (win) released!*\n:small_blue_diamond: *By:* ${{ github.actor }}\n:small_blue_diamond: *Tag:* ${{ github.ref_name }}\"}" \
             "$SLACK_WEBHOOK" || true
 
       - name: Notify Slack of failure
@@ -262,5 +262,5 @@ jobs:
         shell: bash
         run: |
           curl -X POST -H 'Content-type: application/json' \
-            -d "{\"text\": \"🚨 *Audeobox Link (win) build FAILED!*\n• *By:* ${{ github.actor }}\n• *Logs:* https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}\"}" \
+            -d "{\"text\": \":rotating_light: *Audeobox Link (win) build FAILED!*\n:small_blue_diamond: *By:* ${{ github.actor }}\n:small_blue_diamond: *Logs:* https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}\"}" \
             "$SLACK_WEBHOOK" || true
