@@ -145,3 +145,24 @@ jobs:
             [ -f "$f" ] || continue
             gsutil setmeta -h "Cache-Control:public, max-age=86400" "gs://${GCS_BUCKET}/${GCS_PATH}/$f"
           done
+
+      - name: Notify Slack of success
+        if: success()
+        env:
+          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
+        shell: bash
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          curl -X POST -H 'Content-type: application/json' \
+            -d "{\"text\": \"✅ *Audeobox Link v${VERSION} (${{ matrix.platform }}) released!*\n• *By:* ${{ github.actor }}\n• *Tag:* ${{ github.ref_name }}\"}" \
+            "$SLACK_WEBHOOK" || true
+
+      - name: Notify Slack of failure
+        if: failure()
+        env:
+          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
+        shell: bash
+        run: |
+          curl -X POST -H 'Content-type: application/json' \
+            -d "{\"text\": \"🚨 *Audeobox Link (${{ matrix.platform }}) build FAILED!*\n• *By:* ${{ github.actor }}\n• *Tag:* ${{ github.ref_name }}\n• *Logs:* https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}\"}" \
+            "$SLACK_WEBHOOK" || true
