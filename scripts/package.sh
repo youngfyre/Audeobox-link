@@ -6,56 +6,125 @@ PLATFORM="${1:?Usage: package.sh <mac|win> <version>}"
 VERSION="${2:?Usage: package.sh <mac|win> <version>}"
 ARTIFACTS="build/AudeoboxLink_artefacts/Release"
 DIST="dist"
-STAGING="dist/staging"
 
 mkdir -p "$DIST"
-rm -rf "$STAGING"
-mkdir -p "$STAGING"
 
 if [ "$PLATFORM" = "mac" ]; then
-    ARCHIVE="Audeobox-Link-${VERSION}-mac.zip"
+    PKG_NAME="Audeobox-Link-${VERSION}-mac.pkg"
     MANIFEST="latest-mac.yml"
 
-    # Stage only the plugin bundles (VST3 + AU, no Standalone)
-    cp -R "$ARTIFACTS/VST3/Audeobox Link.vst3" "$STAGING/"
-    cp -R "$ARTIFACTS/AU/Audeobox Link.component" "$STAGING/"
+    # Build .pkg installer that copies plugins to system folders
+    # VST3 → /Library/Audio/Plug-Ins/VST3/
+    # AU   → /Library/Audio/Plug-Ins/Components/
 
-    cd "$STAGING"
-    zip -r -y "../../${DIST}/${ARCHIVE}" \
-        "Audeobox Link.vst3" \
-        "Audeobox Link.component"
-    cd ../../
+    pkgbuild \
+        --root "$ARTIFACTS/VST3/Audeobox Link.vst3" \
+        --identifier "com.audeobox.link.vst3" \
+        --version "$VERSION" \
+        --install-location "/Library/Audio/Plug-Ins/VST3/Audeobox Link.vst3" \
+        "$DIST/vst3.pkg"
+
+    pkgbuild \
+        --root "$ARTIFACTS/AU/Audeobox Link.component" \
+        --identifier "com.audeobox.link.au" \
+        --version "$VERSION" \
+        --install-location "/Library/Audio/Plug-Ins/Components/Audeobox Link.component" \
+        "$DIST/au.pkg"
+
+    # Combine into a single product installer
+    cat > "$DIST/distribution.xml" << DISTXML
+<?xml version="1.0" encoding="utf-8"?>
+<installer-gui-script minSpecVersion="2">
+    <title>Audeobox Link ${VERSION}</title>
+    <welcome file="welcome.txt" />
+    <options customize="allow" require-scripts="false" />
+    <choices-outline>
+        <line choice="vst3" />
+        <line choice="au" />
+    </choices-outline>
+    <choice id="vst3" title="VST3 Plugin" description="Install Audeobox Link VST3 for all DAWs">
+        <pkg-ref id="com.audeobox.link.vst3" />
+    </choice>
+    <choice id="au" title="Audio Unit Plugin" description="Install Audeobox Link AU for Logic, GarageBand, etc.">
+        <pkg-ref id="com.audeobox.link.au" />
+    </choice>
+    <pkg-ref id="com.audeobox.link.vst3" version="${VERSION}">vst3.pkg</pkg-ref>
+    <pkg-ref id="com.audeobox.link.au" version="${VERSION}">au.pkg</pkg-ref>
+</installer-gui-script>
+DISTXML
+
+    cat > "$DIST/welcome.txt" << WELCOME
+Audeobox Link v${VERSION}
+
+This installer will add the Audeobox Link plugin to your system:
+
+  • VST3 → /Library/Audio/Plug-Ins/VST3/
+  • Audio Unit → /Library/Audio/Plug-Ins/Components/
+
+After installation, restart your DAW and scan for new plugins.
+
+Requires Audeobox Desktop to be running.
+WELCOME
+
+    productbuild \
+        --distribution "$DIST/distribution.xml" \
+        --resources "$DIST" \
+        --package-path "$DIST" \
+        "$DIST/$PKG_NAME"
+
+    # Clean up intermediate files
+    rm -f "$DIST/vst3.pkg" "$DIST/au.pkg" "$DIST/distribution.xml" "$DIST/welcome.txt"
+
+    ARCHIVE="$PKG_NAME"
 
 elif [ "$PLATFORM" = "win" ]; then
-    ARCHIVE="Audeobox-Link-${VERSION}-win.zip"
+    # Inno Setup creates the .exe installer in CI
+    # This script just generates the .iss config
+    ARCHIVE="Audeobox-Link-${VERSION}-win-setup.exe"
     MANIFEST="latest.yml"
 
-    # Stage only the VST3 plugin (no .exp/.lib build artifacts, no Standalone)
-    mkdir -p "$STAGING/Audeobox Link.vst3"
-    cp -R "$ARTIFACTS/VST3/Audeobox Link.vst3/Contents" "$STAGING/Audeobox Link.vst3/"
+    cat > "$DIST/installer.iss" << ISSEOF
+[Setup]
+AppName=Audeobox Link
+AppVersion=${VERSION}
+AppPublisher=Audeobox
+DefaultDirName={commonpf}\Audeobox\Audeobox Link
+OutputDir=.
+OutputBaseFilename=Audeobox-Link-${VERSION}-win-setup
+Compression=lzma2
+SolidCompression=yes
+ArchitecturesInstallIn64BitMode=x64compatible
+DisableProgramGroupPage=yes
+DisableDirPage=yes
 
-    cd "$STAGING"
-    if command -v powershell &>/dev/null; then
-        powershell -Command "Compress-Archive -Path '*' -DestinationPath '../../${DIST}/${ARCHIVE}' -Force"
-    else
-        zip -r "../../${DIST}/${ARCHIVE}" .
-    fi
-    cd ../../
+[Files]
+Source: "..\build\AudeoboxLink_artefacts\Release\VST3\Audeobox Link.vst3\Contents\x86_64-win\Audeobox Link.vst3"; DestDir: "{commoncf}\VST3"; Flags: ignoreversion
+Source: "..\build\AudeoboxLink_artefacts\Release\VST3\Audeobox Link.vst3\Contents\Resources\moduleinfo.json"; DestDir: "{commoncf}\VST3\Audeobox Link.vst3\Contents\Resources"; Flags: ignoreversion
+
+[Messages]
+WelcomeLabel2=This will install Audeobox Link v${VERSION} VST3 plugin.%n%nThe plugin will be installed to:%n  C:\Program Files\Common Files\VST3\%n%nRequires Audeobox Desktop to be running.
+ISSEOF
+
+    echo "Inno Setup script generated at $DIST/installer.iss"
+    echo "Run 'iscc $DIST/installer.iss' to build the installer"
 else
     echo "Unknown platform: $PLATFORM"
     exit 1
 fi
 
-rm -rf "$STAGING"
-
 # Compute SHA512 and size
 FILE_PATH="${DIST}/${ARCHIVE}"
-if command -v shasum &>/dev/null; then
-    SHA512=$(shasum -a 512 "$FILE_PATH" | awk '{print $1}')
+if [ -f "$FILE_PATH" ]; then
+    if command -v shasum &>/dev/null; then
+        SHA512=$(shasum -a 512 "$FILE_PATH" | awk '{print $1}')
+    else
+        SHA512=$(sha512sum "$FILE_PATH" | awk '{print $1}')
+    fi
+    FILE_SIZE=$(wc -c < "$FILE_PATH" | tr -d ' ')
 else
-    SHA512=$(sha512sum "$FILE_PATH" | awk '{print $1}')
+    SHA512="pending"
+    FILE_SIZE="0"
 fi
-FILE_SIZE=$(wc -c < "$FILE_PATH" | tr -d ' ')
 RELEASE_DATE=$(date -u +"%Y-%m-%dT%H:%M:%S.000Z")
 
 cat > "${DIST}/${MANIFEST}" << EOF
@@ -69,5 +138,5 @@ sha512: ${SHA512}
 releaseDate: '${RELEASE_DATE}'
 EOF
 
-echo "Packaged: ${DIST}/${ARCHIVE} (${FILE_SIZE} bytes)"
+echo "Packaged: ${DIST}/${ARCHIVE}"
 echo "Manifest: ${DIST}/${MANIFEST}"

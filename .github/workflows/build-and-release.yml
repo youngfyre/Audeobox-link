@@ -15,19 +15,9 @@ env:
   JUCE_VERSION: "8.0.4"
 
 jobs:
-  build:
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: macos-latest
-            platform: mac
-          - os: windows-latest
-            platform: win
-
-    runs-on: ${{ matrix.os }}
-    name: Build (${{ matrix.platform }})
-
+  build-mac:
+    runs-on: macos-latest
+    name: Build (mac)
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -37,7 +27,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: JUCE
-          key: juce-${{ env.JUCE_VERSION }}-${{ runner.os }}
+          key: juce-${{ env.JUCE_VERSION }}-macos
 
       - name: Download JUCE
         if: steps.cache-juce.outputs.cache-hit != 'true'
@@ -49,66 +39,62 @@ jobs:
       - name: Build
         run: cmake --build build --config Release
 
-      - name: Sign macOS binaries
-        if: matrix.platform == 'mac'
+      - name: Import signing certificate
         env:
           CSC_LINK: ${{ secrets.CSC_LINK }}
           CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
         run: |
-          # Import certificate to keychain
           KEYCHAIN_PATH=$RUNNER_TEMP/build.keychain
           CERT_PATH=$RUNNER_TEMP/cert.p12
           echo "$CSC_LINK" | base64 --decode > "$CERT_PATH"
           security create-keychain -p "" "$KEYCHAIN_PATH"
           security set-keychain-settings "$KEYCHAIN_PATH"
           security unlock-keychain -p "" "$KEYCHAIN_PATH"
-          security import "$CERT_PATH" -k "$KEYCHAIN_PATH" -P "$CSC_KEY_PASSWORD" -T /usr/bin/codesign
+          security import "$CERT_PATH" -k "$KEYCHAIN_PATH" -P "$CSC_KEY_PASSWORD" -T /usr/bin/codesign -T /usr/bin/productsign
           security set-key-partition-list -S apple-tool:,apple: -k "" "$KEYCHAIN_PATH"
           security list-keychains -d user -s "$KEYCHAIN_PATH" login.keychain
 
+      - name: Sign plugin binaries
+        run: |
           ARTIFACTS="build/AudeoboxLink_artefacts/Release"
-
-          # Sign VST3
           codesign --deep --force --options runtime \
             --sign "Developer ID Application" \
             "$ARTIFACTS/VST3/Audeobox Link.vst3"
-
-          # Sign AU
           codesign --deep --force --options runtime \
             --sign "Developer ID Application" \
             "$ARTIFACTS/AU/Audeobox Link.component"
 
-          # Sign Standalone
-          codesign --deep --force --options runtime \
-            --sign "Developer ID Application" \
-            "$ARTIFACTS/Standalone/Audeobox Link.app"
-
       - name: Get version
         id: version
-        shell: bash
         run: |
           VERSION=$(node -p "require('./package.json').version")
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
-      - name: Package
-        shell: bash
-        run: ./scripts/package.sh ${{ matrix.platform }} ${{ steps.version.outputs.version }}
+      - name: Build .pkg installer
+        run: ./scripts/package.sh mac ${{ steps.version.outputs.version }}
 
-      - name: Notarize macOS
-        if: matrix.platform == 'mac'
+      - name: Sign .pkg installer
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          PKG="dist/Audeobox-Link-${VERSION}-mac.pkg"
+          SIGNED="dist/Audeobox-Link-${VERSION}-mac-signed.pkg"
+          productsign --sign "Developer ID Installer" "$PKG" "$SIGNED"
+          mv "$SIGNED" "$PKG"
+
+      - name: Notarize .pkg
         env:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
           VERSION="${{ steps.version.outputs.version }}"
-          ZIP="dist/Audeobox-Link-${VERSION}-mac.zip"
-
-          xcrun notarytool submit "$ZIP" \
+          PKG="dist/Audeobox-Link-${VERSION}-mac.pkg"
+          xcrun notarytool submit "$PKG" \
             --apple-id "$APPLE_ID" \
             --password "$APPLE_APP_SPECIFIC_PASSWORD" \
             --team-id "$APPLE_TEAM_ID" \
             --wait || echo "Notarization failed (non-fatal for now)"
+          xcrun stapler staple "$PKG" || true
 
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v2
@@ -118,17 +104,124 @@ jobs:
       - name: Setup Google Cloud SDK
         uses: google-github-actions/setup-gcloud@v2
 
-      - name: Upload artifacts to GCS
-        shell: bash
+      - name: Upload to GCS
         run: |
           cd dist
-          for f in *.zip *.yml; do
+          for f in *.pkg *.yml; do
             [ -f "$f" ] || continue
             echo "Uploading $f..."
             gsutil cp "$f" "gs://${GCS_BUCKET}/${GCS_PATH}/$f"
           done
 
-      - name: Set cache-control on manifests
+      - name: Set cache-control
+        run: |
+          cd dist
+          for f in *.yml; do
+            [ -f "$f" ] || continue
+            gsutil setmeta -h "Cache-Control:no-cache, no-store, must-revalidate" "gs://${GCS_BUCKET}/${GCS_PATH}/$f"
+          done
+          for f in *.pkg; do
+            [ -f "$f" ] || continue
+            gsutil setmeta -h "Cache-Control:public, max-age=86400" "gs://${GCS_BUCKET}/${GCS_PATH}/$f"
+          done
+
+      - name: Notify Slack of success
+        if: success()
+        env:
+          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          curl -X POST -H 'Content-type: application/json' \
+            -d "{\"text\": \"✅ *Audeobox Link v${VERSION} (mac) released!*\n• *By:* ${{ github.actor }}\n• *Tag:* ${{ github.ref_name }}\"}" \
+            "$SLACK_WEBHOOK" || true
+
+      - name: Notify Slack of failure
+        if: failure()
+        env:
+          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
+        run: |
+          curl -X POST -H 'Content-type: application/json' \
+            -d "{\"text\": \"🚨 *Audeobox Link (mac) build FAILED!*\n• *By:* ${{ github.actor }}\n• *Logs:* https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}\"}" \
+            "$SLACK_WEBHOOK" || true
+
+  build-win:
+    runs-on: windows-latest
+    name: Build (win)
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Cache JUCE
+        id: cache-juce
+        uses: actions/cache@v4
+        with:
+          path: JUCE
+          key: juce-${{ env.JUCE_VERSION }}-windows
+
+      - name: Download JUCE
+        if: steps.cache-juce.outputs.cache-hit != 'true'
+        run: git clone --depth 1 --branch ${{ env.JUCE_VERSION }} https://github.com/juce-framework/JUCE.git JUCE
+
+      - name: Configure CMake
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build
+        run: cmake --build build --config Release
+
+      - name: Get version
+        id: version
+        shell: bash
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Generate Inno Setup script
+        shell: bash
+        run: ./scripts/package.sh win ${{ steps.version.outputs.version }}
+
+      - name: Build Windows installer
+        uses: Minionguyjpro/Inno-Setup-Action@v1.2.4
+        with:
+          path: dist/installer.iss
+
+      - name: Update manifest with installer hash
+        shell: bash
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          INSTALLER="dist/Audeobox-Link-${VERSION}-win-setup.exe"
+          SHA512=$(sha512sum "$INSTALLER" | awk '{print $1}')
+          FILE_SIZE=$(wc -c < "$INSTALLER" | tr -d ' ')
+          RELEASE_DATE=$(date -u +"%Y-%m-%dT%H:%M:%S.000Z")
+          cat > "dist/latest.yml" << EOF
+          version: ${VERSION}
+          files:
+            - url: Audeobox-Link-${VERSION}-win-setup.exe
+              sha512: ${SHA512}
+              size: ${FILE_SIZE}
+          path: Audeobox-Link-${VERSION}-win-setup.exe
+          sha512: ${SHA512}
+          releaseDate: '${RELEASE_DATE}'
+          EOF
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Setup Google Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Upload to GCS
+        shell: bash
+        run: |
+          cd dist
+          for f in *.exe *.yml; do
+            [ -f "$f" ] || continue
+            echo "Uploading $f..."
+            gsutil cp "$f" "gs://${GCS_BUCKET}/${GCS_PATH}/$f"
+          done
+
+      - name: Set cache-control
         shell: bash
         run: |
           cd dist
@@ -136,12 +229,7 @@ jobs:
             [ -f "$f" ] || continue
             gsutil setmeta -h "Cache-Control:no-cache, no-store, must-revalidate" "gs://${GCS_BUCKET}/${GCS_PATH}/$f"
           done
-
-      - name: Set cache-control on archives
-        shell: bash
-        run: |
-          cd dist
-          for f in *.zip; do
+          for f in *.exe; do
             [ -f "$f" ] || continue
             gsutil setmeta -h "Cache-Control:public, max-age=86400" "gs://${GCS_BUCKET}/${GCS_PATH}/$f"
           done
@@ -154,7 +242,7 @@ jobs:
         run: |
           VERSION="${{ steps.version.outputs.version }}"
           curl -X POST -H 'Content-type: application/json' \
-            -d "{\"text\": \"✅ *Audeobox Link v${VERSION} (${{ matrix.platform }}) released!*\n• *By:* ${{ github.actor }}\n• *Tag:* ${{ github.ref_name }}\"}" \
+            -d "{\"text\": \"✅ *Audeobox Link v${VERSION} (win) released!*\n• *By:* ${{ github.actor }}\n• *Tag:* ${{ github.ref_name }}\"}" \
             "$SLACK_WEBHOOK" || true
 
       - name: Notify Slack of failure
@@ -164,5 +252,5 @@ jobs:
         shell: bash
         run: |
           curl -X POST -H 'Content-type: application/json' \
-            -d "{\"text\": \"🚨 *Audeobox Link (${{ matrix.platform }}) build FAILED!*\n• *By:* ${{ github.actor }}\n• *Tag:* ${{ github.ref_name }}\n• *Logs:* https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}\"}" \
+            -d "{\"text\": \"🚨 *Audeobox Link (win) build FAILED!*\n• *By:* ${{ github.actor }}\n• *Logs:* https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}\"}" \
             "$SLACK_WEBHOOK" || true
