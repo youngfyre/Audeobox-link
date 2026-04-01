@@ -1,10 +1,7 @@
 cmake_minimum_required(VERSION 3.22)
 
-if(DEFINED OVERRIDE_VERSION)
-    project(AudeoboxLink VERSION ${OVERRIDE_VERSION})
-else()
-    project(AudeoboxLink VERSION 0.1.0)
-endif()
+set(AUDEOBOX_VERSION "0.1.0" CACHE STRING "Plugin version")
+project(AudeoboxLink VERSION ${AUDEOBOX_VERSION})
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)

@@ -40,7 +40,7 @@ jobs:
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
       - name: Configure CMake
-        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DOVERRIDE_VERSION=${{ steps.version.outputs.version }}
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release "-DAUDEOBOX_VERSION=${{ steps.version.outputs.version }}"
 
       - name: Build
         run: cmake --build build --config Release
@@ -180,7 +180,7 @@ jobs:
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
       - name: Configure CMake
-        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DOVERRIDE_VERSION=${{ steps.version.outputs.version }}
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release "-DAUDEOBOX_VERSION=${{ steps.version.outputs.version }}"
 
       - name: Build
         run: cmake --build build --config Release
