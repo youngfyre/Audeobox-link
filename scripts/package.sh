@@ -16,26 +16,23 @@ if [ "$PLATFORM" = "mac" ]; then
     ARCHIVE="Audeobox-Link-${VERSION}-mac.zip"
     MANIFEST="latest-mac.yml"
 
-    # Stage only the plugin bundles
+    # Stage only the plugin bundles (VST3 + AU, no Standalone)
     cp -R "$ARTIFACTS/VST3/Audeobox Link.vst3" "$STAGING/"
     cp -R "$ARTIFACTS/AU/Audeobox Link.component" "$STAGING/"
-    cp -R "$ARTIFACTS/Standalone/Audeobox Link.app" "$STAGING/"
 
     cd "$STAGING"
     zip -r -y "../../${DIST}/${ARCHIVE}" \
         "Audeobox Link.vst3" \
-        "Audeobox Link.component" \
-        "Audeobox Link.app"
+        "Audeobox Link.component"
     cd ../../
 
 elif [ "$PLATFORM" = "win" ]; then
     ARCHIVE="Audeobox-Link-${VERSION}-win.zip"
     MANIFEST="latest.yml"
 
-    # Stage only the actual plugin files (no .exp/.lib build artifacts)
-    mkdir -p "$STAGING/Audeobox Link.vst3/Contents/x86_64-win"
-    cp -R "$ARTIFACTS/VST3/Audeobox Link.vst3/Contents/" "$STAGING/Audeobox Link.vst3/Contents/"
-    cp "$ARTIFACTS/Standalone/Audeobox Link.exe" "$STAGING/"
+    # Stage only the VST3 plugin (no .exp/.lib build artifacts, no Standalone)
+    mkdir -p "$STAGING/Audeobox Link.vst3"
+    cp -R "$ARTIFACTS/VST3/Audeobox Link.vst3/Contents" "$STAGING/Audeobox Link.vst3/"
 
     cd "$STAGING"
     if command -v powershell &>/dev/null; then

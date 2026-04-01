@@ -17,7 +17,7 @@ endif()
 
 add_subdirectory("${JUCE_DIR}" JUCE)
 
-set(PLUGIN_FORMATS Standalone VST3)
+set(PLUGIN_FORMATS VST3)
 if(APPLE)
     list(APPEND PLUGIN_FORMATS AU)
 endif()
