@@ -19,6 +19,7 @@ float smoothMeterLevel(float currentLevel, float targetLevel) noexcept
 
 AueoboxAudioProcessor::AueoboxAudioProcessor()
     : AudioProcessor(BusesProperties()
+          .withInput("Input", juce::AudioChannelSet::stereo(), true)
           .withOutput("Output", juce::AudioChannelSet::stereo(), true)),
       juce::Thread("AudeoboxBridgeThread")
 {
@@ -42,10 +43,13 @@ void AueoboxAudioProcessor::releaseResources()
 
 bool AueoboxAudioProcessor::isBusesLayoutSupported(const BusesLayout& layouts) const
 {
+    const auto mainIn = layouts.getMainInputChannelSet();
     const auto mainOut = layouts.getMainOutputChannelSet();
 
-    return mainOut == juce::AudioChannelSet::mono()
-        || mainOut == juce::AudioChannelSet::stereo();
+    if (mainOut != juce::AudioChannelSet::mono() && mainOut != juce::AudioChannelSet::stereo())
+        return false;
+
+    return mainIn == mainOut || mainIn.isDisabled();
 }
 
 void AueoboxAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::MidiBuffer&)
