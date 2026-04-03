@@ -17,11 +17,29 @@ if [ "$PLATFORM" = "mac" ]; then
     # VST3 → /Library/Audio/Plug-Ins/VST3/
     # AU   → /Library/Audio/Plug-Ins/Components/
 
+    # Pre-install scripts remove old bundles so reinstalls always overwrite
+    mkdir -p "$DIST/vst3-scripts"
+    cat > "$DIST/vst3-scripts/preinstall" << 'SCRIPT'
+#!/bin/bash
+rm -rf "/Library/Audio/Plug-Ins/VST3/Audeobox Link.vst3"
+exit 0
+SCRIPT
+    chmod +x "$DIST/vst3-scripts/preinstall"
+
+    mkdir -p "$DIST/au-scripts"
+    cat > "$DIST/au-scripts/preinstall" << 'SCRIPT'
+#!/bin/bash
+rm -rf "/Library/Audio/Plug-Ins/Components/Audeobox Link.component"
+exit 0
+SCRIPT
+    chmod +x "$DIST/au-scripts/preinstall"
+
     pkgbuild \
         --root "$ARTIFACTS/VST3/Audeobox Link.vst3" \
         --identifier "com.audeobox.link.vst3" \
         --version "$VERSION" \
         --install-location "/Library/Audio/Plug-Ins/VST3/Audeobox Link.vst3" \
+        --scripts "$DIST/vst3-scripts" \
         "$DIST/vst3.pkg"
 
     pkgbuild \
@@ -29,6 +47,7 @@ if [ "$PLATFORM" = "mac" ]; then
         --identifier "com.audeobox.link.au" \
         --version "$VERSION" \
         --install-location "/Library/Audio/Plug-Ins/Components/Audeobox Link.component" \
+        --scripts "$DIST/au-scripts" \
         "$DIST/au.pkg"
 
     # Combine into a single product installer
@@ -74,6 +93,7 @@ WELCOME
 
     # Clean up intermediate files
     rm -f "$DIST/vst3.pkg" "$DIST/au.pkg" "$DIST/distribution.xml" "$DIST/welcome.txt"
+    rm -rf "$DIST/vst3-scripts" "$DIST/au-scripts"
 
     ARCHIVE="$PKG_NAME"
 
