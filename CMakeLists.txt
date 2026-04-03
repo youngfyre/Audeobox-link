@@ -1,12 +1,13 @@
 cmake_minimum_required(VERSION 3.22)
 
+set(CMAKE_OSX_DEPLOYMENT_TARGET "11.0" CACHE STRING "Minimum macOS version")
+set(CMAKE_OSX_ARCHITECTURES "arm64;x86_64" CACHE STRING "Build universal binary")
+
 set(AUDEOBOX_VERSION "0.1.0" CACHE STRING "Plugin version")
 project(AudeoboxLink VERSION ${AUDEOBOX_VERSION})
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(CMAKE_OSX_DEPLOYMENT_TARGET "11.0" CACHE STRING "Minimum macOS version")
-set(CMAKE_OSX_ARCHITECTURES "arm64;x86_64" CACHE STRING "Build universal binary")
 
 # Point this at a local JUCE checkout. Default assumes JUCE/ in the project root.
 if (NOT DEFINED JUCE_DIR)

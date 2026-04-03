@@ -16,7 +16,7 @@ env:
 
 jobs:
   build-mac:
-    runs-on: macos-13
+    runs-on: macos-15
     name: Build (mac)
     steps:
       - name: Checkout
@@ -40,10 +40,18 @@ jobs:
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
       - name: Configure CMake
-        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64" "-DAUDEOBOX_VERSION=${{ steps.version.outputs.version }}"
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_OSX_DEPLOYMENT_TARGET="11.0" -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64" "-DAUDEOBOX_VERSION=${{ steps.version.outputs.version }}"
 
       - name: Build
         run: cmake --build build --config Release
+
+      - name: Verify binary compatibility
+        run: |
+          BINARY="build/AudeoboxLink_artefacts/Release/VST3/Audeobox Link.vst3/Contents/MacOS/Audeobox Link"
+          echo "=== Architectures ==="
+          lipo -info "$BINARY"
+          echo "=== Build version info ==="
+          vtool -show-build "$BINARY"
 
       - name: Import signing certificates
         env:
